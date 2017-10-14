@@ -559,7 +559,7 @@ function menu.new(args, parent)
 		keys         = {},
 		parent       = parent,
 		layout       = wibox.layout.fixed.vertical(),
-		add_size     = 0,
+		add_size     = 10,
 		theme        = redutil.table.merge(parent and parent.theme or default_theme(), args.theme or {})
 	}
 

@@ -265,7 +265,9 @@ local function parse_dir(dir, style)
 
 		for file in string.gmatch(files, "[^\n]+") do
 			local program = parse(file, style)
-			if program then table.insert(programs, program) end
+			if program and program.Exec ~= nil and program.Exec ~= '' then
+				table.insert(programs, program)
+			end
 		end
 
 		cache[req] = programs
@@ -370,8 +372,13 @@ function dfparser.icon_list(style)
 		for _, prog in ipairs(programs) do
 			if prog.Icon and prog.Exec then
 				local key = string.match(prog.Exec, "[%a%d%.%-/]+")
-				if string.find(key, "/") then key = string.match(key, "[%a%d%.%-]+$") end
-				list[key] = prog.icon_path
+				if key ~= nil then
+					if string.find(key, "/") then key = string.match(key, "[%a%d%.%-]+$") end
+					list[key] = prog.icon_path
+				end
+--					error ("Could not find icon for: " .. prog.Exec .. "\n" .. prog.Icon)
+--					list[prog.Exec] = prog.icon_path
+--				end
 			end
 		end
 	end
