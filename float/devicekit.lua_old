@@ -1,0 +1,348 @@
+-----------------------------------------------------------------------------------------------------------------------
+--                                           RedFlat devicekit widget                                                --
+-----------------------------------------------------------------------------------------------------------------------
+-- Device kit quick menu
+-----------------------------------------------------------------------------------------------------------------------
+
+-- Grab environment
+-----------------------------------------------------------------------------------------------------------------------
+local table = table
+local unpack = unpack
+local string = string
+local math = math
+local io = io
+local os = os
+
+local wibox = require("wibox")
+local awful = require("awful")
+local beautiful = require("beautiful")
+local color = require("gears.color")
+
+local redflat = require("redflat")
+local redutil = require("redflat.util")
+local rednotify = require("redflat.float.notify")
+local redtip = require("redflat.float.hotkeys")
+local naughty = require("naughty")
+
+
+local function print(text)
+    rednotify:show({ text = text })
+end
+local function print2(text)
+    naughty.notify({ title = "Echo", text = text, timeout = 0 })
+end
+local function dump(o)
+    if type(o) == 'table' then
+        local s = '{ '
+        for k, v in pairs(o) do
+            if type(k) ~= 'number' then k = '"'..k..'"' end
+            s = s .. '['..k..'] = ' .. dump(v) .. ','
+        end
+        return s .. '} '
+    else
+        return tostring(o)
+    end
+end
+
+function round(num, numDecimalPlaces)
+  local mult = 10 ^ (numDecimalPlaces or 0)
+  return math.floor(num * mult + 0.5) / mult
+end
+local dbus_interface = "redflat.devicekit"
+
+local TPI = math.pi * 2
+
+
+-- Generate default theme vars
+-----------------------------------------------------------------------------------------------------------------------
+local function default_style()
+	local style = {
+		df_icon         = redutil.base.placeholder({ txt = "X" }),
+		no_icon         = redutil.base.placeholder(),
+		parser          = {},
+		recoloring      = false,
+		notify          = {},
+		geometry        = { width = 600, height = 420 },
+		border_margin   = { 20, 20, 10, 10 },
+		appline         = { iwidth = 160, im = { 10, 10, 5, 5 }, igap = { 0, 0, 10, 10 }, lheight = 30 },
+		state           = { gap = 4, radius = 3, size = 10, height = 20, width = 20 },
+		configfile      = os.getenv("HOME") .. "/.cache/awesome/applist",
+		label_font      = "Sans 14",
+		border_width    = 2,
+		keytip          = { geometry = { width = 500, height = 400 }, exit = false },
+		color           = { border = "#575757", text = "#aaaaaa", main = "#b1222b", urgent = "#32882d",
+		                    wibox  = "#202020", icon = "#a0a0a0", bg   = "#161616", gray   = "#575757" }
+	}
+
+	return redutil.table.merge(style, redutil.table.check(beautiful, "float.devicekit") or {})
+end
+
+-- Escape html \x20 spaces.
+local function escape_html_spaces(str)
+    return string.gsub(str, "\\x20", " ")
+end
+
+-- Build application state indicator
+--------------------------------------------------------------------------------
+local function build_state_indicator(style)
+
+	-- Initialize vars
+	------------------------------------------------------------
+	local widg = wibox.widget.base.make_widget()
+
+	local dx = style.state.size + style.state.gap
+	local ds = style.state.size - style.state.radius
+	local r  = style.state.radius
+
+	-- updating values
+	local data = {
+		state = {},
+		height = style.state.height or nil,
+		width = style.state.width or nil
+	}
+
+	-- User functions
+	------------------------------------------------------------
+	function widg:setup(clist)
+		data.state = {}
+		for _, c in ipairs(clist) do
+			table.insert(data.state, { focused = client.focus == c, urgent = c.urgent, minimized = c.minimized })
+		end
+		self:emit_signal("widget::updated")
+	end
+
+	-- Fit
+	------------------------------------------------------------
+	function widg:fit(context, width, height)
+		return data.width or width, data.height or height
+	end
+
+	-- Draw
+	------------------------------------------------------------
+	function widg:draw(context, cr, width, height)
+		local n = #data.state
+		local x0 = (width - n * style.state.size - (n - 1) * style.state.gap) / 2
+		local y0 = (height - style.state.size) / 2
+
+		for i = 1, n do
+			cr:set_source(color(
+				data.state[i].focused   and style.color.main   or
+				data.state[i].urgent    and style.color.urgent or
+				data.state[i].minimized and style.color.gray   or style.color.icon
+			))
+			-- draw rounded rectangle
+			cr:arc(x0 + (i -1) * dx + ds, y0 + r,  r, -TPI / 4, 0)
+			cr:arc(x0 + (i -1) * dx + ds, y0 + ds, r, 0, TPI / 4)
+			cr:arc(x0 + (i -1) * dx + r,  y0 + ds, r, TPI / 4, TPI / 2)
+			cr:arc(x0 + (i -1) * dx + r,  y0 + r,  r, TPI / 2, 3 * TPI / 4)
+			cr:fill()
+		end
+	end
+
+	------------------------------------------------------------
+	return widg
+end
+
+local function build_option(key, style)
+	local widg = {}
+
+    print("Key: " .. key)
+
+	-- Label
+	----------------------------------------------------------
+	local label = wibox.widget({
+		markup = string.format('<span color="%s">%s</span>', style.color.text, key),
+		align  = "center",
+		font = style.label_font,
+		forced_height = style.appline.lheight,
+		widget = wibox.widget.textbox,
+	})
+
+	widg.background = wibox.container.background(label, style.color.bg)
+
+	-- State
+	----------------------------------------------------------
+	-- widg.state = build_state_indicator(style)
+
+	-- Layout setup
+	----------------------------------------------------------
+	widg.layout = wibox.layout.align.vertical()
+	-- widg.layout:set_top(widg.state)
+	widg.layout:set_bottom(widg.background)
+
+	----------------------------------------------------------
+	return widg
+end
+
+-- Initialize tables and vars for module
+-----------------------------------------------------------------------------------------------------------------------
+local dkit = { }
+
+function dkit:init(args, style)
+	local args = args or {}
+	local keys = args.keys or switcher_keys
+
+	local style = redutil.table.merge(default_style(), style or {})
+	self.style = style
+    self.drives = {}
+	-- self:load_config(keys)
+
+	-- Wibox
+	------------------------------------------------------------
+	self.wibox = wibox({
+		ontop        = true,
+		bg           = style.color.wibox,
+		border_width = style.border_width,
+		border_color = style.color.border
+	})
+	self.wibox:geometry(style.geometry)
+	redutil.placement.centered(self.wibox, nil, screen[mouse.screen].workarea)
+    
+	-- Keygrabber
+	------------------------------------------------------------
+	self.keygrabber = function(mod, key, event)
+		if event == "press" then return false end
+        if key == "Escape" then
+            self:hide()
+        end 
+	end
+
+    -- Default event handlers
+    self.events = {
+        driveAdded = args.driveAdded or function(data) self:driveAdded(data) end,
+        deviceAdded = args.deviceAdded or function(data) self:deviceAdded(data) end,
+        networkAdded = args.networkAdded or function(data) self:networkAdded(data) end,
+        mouseAdded = args.mouseAdded or function(data) self:mouseAdded(data) end,
+        usbAdded = args.usbAdded or function(data) self:usbAdded(data) end,
+    }
+
+	-- Set dbus signal handlers
+    -- New disk connected notification
+	dbus.request_name("system", "org.freedesktop.UDisks")
+	dbus.add_match(
+		"system",
+		"path=/org/freedesktop/UDisks2, interface='org.freedesktop.DBus.ObjectManager', member='InterfacesAdded'"
+	)
+	dbus.connect_signal("org.freedesktop.DBus.ObjectManager",
+		function (_, _, data)
+            if data == nil then return end
+            local props = data["org.freedesktop.UDisks2.Drive"]
+            if props == nil then return end
+            self.events.driveAdded(props)
+        end
+    )
+    
+    -- New network interface notification.
+    -- New device connected.
+    --
+    -- The interface is registered by the awesome itself, and the method is called.
+	dbus.request_name("session", dbus_interface)
+
+    local need_connect = false -- true if we have anything in `self.events`
+    for k, _ in pairs(self.events) do
+        dbus.add_match(
+            "session",
+            "path=/, interface='" .. dbus_interface .. "', member='" .. k .. "'"
+        )
+
+        need_connect = true
+    end
+
+    if need_connect then
+        dbus.connect_signal(dbus_interface,
+            function (info, data)
+                if info.member == nil then return end
+
+                local handler = self.events[info.member]
+                if handler ~= nil then
+                    handler(data)
+                end
+            end
+        )
+    end
+    
+end
+
+-- Default handlers
+function dkit:driveAdded(data)
+    self:build_drive_options(data)
+    self:show()
+end
+
+function dkit:deviceAdded(data)
+    print("Device added: " .. data) 
+end
+
+function dkit:networkAdded(data)
+    print("Network added: " .. data)
+end
+
+function dkit:mouseAdded(data)
+    print("Mouse added: " .. escape_html_spaces(data))
+end
+
+function dkit:usbAdded(data)
+    print("USB: " .. data)
+end
+
+
+-- Handler utilities
+function dkit:build_drive_options(data)
+    local label_text = "Drive: " .. data.Model .. " (" .. round(data.Size / 1024^3, 2) .. " GB)"
+    local default_drive_options = {
+        "Partitions",
+        "Info",
+    }
+
+	-- Label
+	------------------------------------------------------------
+	local label = wibox.widget({
+		markup = string.format('<span color="%s">%s</span>', self.style.color.text, label_text),
+		align  = "center",
+		font = self.style.label_font,
+		forced_height = self.style.appline.lheight,
+		widget = wibox.widget.textbox,
+	})
+
+    -- Widget with options
+	local widg = { items = {}, selected = nil }
+	local middle_layout = wibox.layout.fixed.vertical()
+
+    for _, key in ipairs(default_drive_options) do
+        widg.items[key] = build_option(key, self.style)
+		middle_layout:add(wibox.container.margin(widg.items[key].layout, unpack(self.style.appline.im)))
+    end
+
+	widg.layout = wibox.widget({
+		nil,
+		wibox.container.margin(middle_layout, unpack(self.style.border_margin)),
+		expand = "outside",
+		layout = wibox.layout.align.vertical,
+	})
+
+    -- Main layout
+	local layout = wibox.layout.fixed.vertical()
+    layout:add(label)
+    layout:add(widg.layout)
+
+    self.wibox:set_widget(layout)
+end
+
+
+-- Widget show/hide
+--------------------------------------------------------------------------------
+function dkit:show()
+	if not self.wibox then self:init() end
+
+	self.wibox.visible = true
+	awful.keygrabber.run(self.keygrabber)
+	redtip:set_pack("Devicekit", self.keys.all, self.keytip.column, self.keytip.geometry)
+end
+
+function dkit:hide()
+	self.wibox.visible = false
+	awful.keygrabber.stop(self.keygrabber)
+	redtip:remove_pack()
+end
+
+return dkit

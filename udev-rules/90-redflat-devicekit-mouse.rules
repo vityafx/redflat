@@ -1,0 +1,2 @@
+# Make sure to change the `fx` to you user name.
+ACTION=="add", KERNEL=="mouse0", SUBSYSTEM=="input", RUN+="/usr/bin/devicekit_runner.sh fx mouseAdded string:$ID_MODEL_ENC"

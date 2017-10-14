@@ -1,0 +1,2 @@
+# Make sure to change the `fx` to you user name.
+ACTION=="add", SUBSYSTEM=="usb", RUN+="/usr/bin/devicekit_runner.sh fx usbAdded string:$ID_VENDOR"
