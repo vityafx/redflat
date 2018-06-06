@@ -63,7 +63,7 @@ function pulse:change_volume(args)
 
 	-- get current volume
 	local v = redutil.read.output("pacmd dump |grep set-sink-volume | grep " .. pulse_def_sink )
-	local volume = tonumber(string.match(v, "0x%x+"))
+	local volume = tonumber(string.match(v, "0x%x+")) or 0
 
 	-- calculate new volume
 	local new_volume = volume + diff

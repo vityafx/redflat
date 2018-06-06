@@ -14,6 +14,7 @@
 local error = error
 local type = type
 local table = table
+local unpack = table.unpack
 
 
 local awful = require("awful")

@@ -8,6 +8,7 @@
 -----------------------------------------------------------------------------------------------------------------------
 local ipairs = ipairs
 local pairs = pairs
+local unpack = table.unpack
 local math = math
 
 local beautiful = require("beautiful")

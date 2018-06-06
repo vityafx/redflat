@@ -7,7 +7,7 @@
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
 local setmetatable = setmetatable
-local unpack = unpack
+local unpack = table.unpack
 local wibox = require("wibox")
 local beautiful = require("beautiful")
 local color = require("gears.color")

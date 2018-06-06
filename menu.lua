@@ -33,6 +33,7 @@ local pairs = pairs
 local pcall = pcall
 local print = print
 local table = table
+local unpack = table.unpack
 local type = type
 local math = math
 

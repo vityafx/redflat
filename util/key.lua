@@ -1,6 +1,7 @@
 -- RedFlat util submodule
 
 local table = table
+local unpack = table.unpack
 local awful = require("awful")
 
 local key = {}

@@ -18,6 +18,7 @@ local setmetatable = setmetatable
 local pairs = pairs
 local ipairs = ipairs
 local table = table
+local unpack = table.unpack
 local string = string
 local math = math
 local beautiful = require("beautiful")

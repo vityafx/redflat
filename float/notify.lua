@@ -7,7 +7,7 @@
 
 -- Grab environment
 -----------------------------------------------------------------------------------------------------------------------
-local unpack = unpack
+local unpack = table.unpack
 local awful = require("awful")
 local beautiful = require("beautiful")
 local wibox = require("wibox")

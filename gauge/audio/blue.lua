@@ -8,6 +8,7 @@
 -----------------------------------------------------------------------------------------------------------------------
 local setmetatable = setmetatable
 local math = math
+local unpack = table.unpack
 local string = string
 local wibox = require("wibox")
 local beautiful = require("beautiful")
